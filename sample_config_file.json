@@ -1,0 +1,10 @@
+{
+  "_comment" : "root_dir is your codebase folder, output_dir is your directory where the .docx file will be saved, heading is your assignment name",
+
+  
+  "root_dir": "", 
+  "output_dir": "",
+  "output_file_name": "",
+  "heading": "",
+  "code_font": ""
+}
