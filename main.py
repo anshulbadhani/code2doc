@@ -14,10 +14,9 @@ def main():
     OUTPUT_DIR = config["output_dir"]
     OUTPUT_FILE_NAME = config["output_file_name"]
     OUTPUT_FILE = f"{OUTPUT_DIR}/{OUTPUT_FILE_NAME}.docx"
-    PROJECT_NAME = config["project_name"]
-    GITHUB_LINK = config["github_link"]
     CODE_FONT = config["code_font"]
     HEADING = config["heading"]
+    EXTENSIONS = config.get("include_extensions", [])
 
     doc = Document()
 
@@ -30,7 +29,7 @@ def main():
     # Traversing the file structure
     for folder, _, files in os.walk(ROOT_DIR): # (folder_path, subdirectories, filenames)
         for filename in files:
-            if filename.endswith('.java'):
+            if any(filename.endswith(ext) for ext in EXTENSIONS):
                 file_path = os.path.join(folder, filename)
                 rel_path = os.path.relpath(file_path, ROOT_DIR)
 
@@ -48,10 +47,20 @@ def main():
                     r.font.size = Pt(10)
                 
     doc.add_section()
+
     # Add a paragraph at the end
-    end_para = doc.add_paragraph(f"© 2025 Anshul Badhani – {PROJECT_NAME} – {GITHUB_LINK}")
-    end_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    end_para.runs[0].font.size = Pt(10)
+    CREDITS_FILE = ".credits.json"
+    with open(CREDITS_FILE) as f:
+        credits = json.load(f)
+    
+    PROJECT_NAME = credits["project_name"]
+    GITHUB_LINK = credits["github_link"]
+
+    end_footer = doc.sections[-1].footer
+    end_footer_para = end_footer.paragraphs[0]
+    end_footer_para.text = f"© 2025 Anshul Badhani – {PROJECT_NAME} – {GITHUB_LINK}"
+    end_footer_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    end_footer_para.runs[0].font.size = Pt(10)
     # Save to DOCX
     doc.save(OUTPUT_FILE)
     print(f"✅ Assignment saved to {OUTPUT_FILE}")
