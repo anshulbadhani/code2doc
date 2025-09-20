@@ -1,4 +1,4 @@
-name: Assignment DOCX Generator CI
+name: Python application
 
 on:
   push:
@@ -6,29 +6,40 @@ on:
   pull_request:
     branches: [ "master" ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
+
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up Python 3.13.3
+      uses: actions/setup-python@v3
       with:
         python-version: "3.13.3"
 
     - name: Install uv
       run: pip install uv
 
-    - name: Sync dependencies
-      run: uv sync
+    - name: Install dependencies
+      run: |
+        uv pip install --upgrade pip
+        if [ -f requirements.txt ]; then uv pip install -r requirements.txt; fi
+
+    - name: Install dev tools (flake8 & pytest)
+      run: |
+        uv pip install flake8 pytest
 
     - name: Lint with flake8
       run: |
+        # stop the build if there are Python syntax errors or undefined names
         uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         uv run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-    - name: Run tests
+    - name: Test with pytest
       run: uv run pytest
