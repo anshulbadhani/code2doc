@@ -48,6 +48,7 @@ cd code2doc
     ```bash
     uv run main.py
     ```
+_You can also use `uv run main.py --help` for seeing all the possible options_
 
 ## 📁Project Structure
 ```txt
