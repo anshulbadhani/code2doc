@@ -11,7 +11,7 @@ from datetime import datetime
 
 import pathspec
 
-# --- 1. Load Configuration Defaults ---
+# --- Defaults & Config ---
 CONFIG_FILE = "config.json"
 CREDITS_FILE = ".credits.json"
 
@@ -40,7 +40,7 @@ if os.path.exists(CREDITS_FILE):
         with open(CREDITS_FILE, "r") as f:
             DEFAULTS.update(json.load(f))
     except Exception:
-        pass
+        print(f"⚠️ Warning: Could not parse {CREDITS_FILE}.")
 
 app = typer.Typer(add_completion=False)
 
@@ -71,7 +71,7 @@ def load_gitignore_specs(root: Path):
             base = Path(dirpath)
             try:
                 lines = (base / ".gitignore").read_text(encoding="utf-8").splitlines()
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
             spec = pathspec.PathSpec.from_lines("gitwildmatch", lines)
             if spec.patterns:
@@ -79,7 +79,7 @@ def load_gitignore_specs(root: Path):
     return specs
 
 
-def is_ignored(file_path: Path, specs) -> bool:
+def is_ignored(file_path: Path, specs: list) -> bool:
     """Return True if `file_path` matches any of the loaded gitignore specs."""
     file_path = Path(file_path)
     for base, spec in specs:
@@ -172,7 +172,7 @@ def main(
         for filename in files:
             if any(filename.endswith(ext) for ext in extensions):
                 full_path = Path(folder) / filename
-                if gitignore and is_ignored(full_path, gitignore_specs):
+                if is_ignored(full_path, gitignore_specs):
                     ignored_count += 1
                     continue
                 collected_files.append(full_path)
