@@ -9,6 +9,8 @@ from docx.shared import Pt
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from datetime import datetime
 
+import pathspec
+
 # --- 1. Load Configuration Defaults ---
 CONFIG_FILE = "config.json"
 CREDITS_FILE = ".credits.json"
@@ -20,6 +22,7 @@ DEFAULTS = {
     "heading": "Assignment %number%",
     "include_extensions": [".cpp"],
     "code_font": "Courier New",
+    "gitignore": True,  # honor .gitignore when scanning
     "project_name": "code2doc", # for credits
     "github_link": "https://github.com/anshulbadhani/code2doc", # for credits
     "author": "Anshul Badhani", # for credits
@@ -55,6 +58,40 @@ def natural_sort_key(path: Path):
     ]
 
 
+# --- Helper: Gitignore Matching ---
+def load_gitignore_specs(root: Path):
+    """Return [(base_dir, spec), ...] for every .gitignore under `root`.
+
+    Patterns in each file are relative to that file's directory, mirroring git.
+    """
+    specs = []
+    root = Path(root)
+    for dirpath, _, filenames in os.walk(root):
+        if ".gitignore" in filenames:
+            base = Path(dirpath)
+            try:
+                lines = (base / ".gitignore").read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            spec = pathspec.PathSpec.from_lines("gitwildmatch", lines)
+            if spec.patterns:
+                specs.append((base, spec))
+    return specs
+
+
+def is_ignored(file_path: Path, specs) -> bool:
+    """Return True if `file_path` matches any of the loaded gitignore specs."""
+    file_path = Path(file_path)
+    for base, spec in specs:
+        try:
+            rel = file_path.relative_to(base)
+        except ValueError:
+            continue
+        if spec.match_file(str(rel)):
+            return True
+    return False
+
+
 @app.command()
 def main(
     # New Flag for Ordering
@@ -76,6 +113,11 @@ def main(
         DEFAULTS["include_extensions"], "--ext", "-e", help="Extensions."
     ),
     code_font: str = typer.Option(DEFAULTS["code_font"], help="Code font."),
+    gitignore: bool = typer.Option(
+        DEFAULTS["gitignore"],
+        "--gitignore/--no-gitignore",
+        help="Skip files matched by .gitignore under the root directory.",
+    ),
     project_name: str = typer.Option(
         DEFAULTS.get("project_name", "Project"), help="Footer project."
     ),
@@ -88,6 +130,8 @@ def main(
 ):
     """
     Compiles code into DOCX. Use -o to sort files naturally (1, 2, 10).
+    Files matched by .gitignore under the root directory are skipped by default
+    (use --no-gitignore to include them).
     """
 
     # --- 1. Setup Paths & Replacements ---
@@ -120,13 +164,24 @@ def main(
 
     # --- 2. Collect & Sort Files ---
     collected_files = []
+    ignored_count = 0
+    gitignore_specs = load_gitignore_specs(target_root) if gitignore else []
 
     typer.echo("🔍 Scanning files...")
     for folder, _, files in os.walk(target_root):
         for filename in files:
             if any(filename.endswith(ext) for ext in extensions):
                 full_path = Path(folder) / filename
+                if gitignore and is_ignored(full_path, gitignore_specs):
+                    ignored_count += 1
+                    continue
                 collected_files.append(full_path)
+
+    if gitignore and ignored_count:
+        typer.secho(
+            f"⏭️  Skipped {ignored_count} file(s) matched by .gitignore",
+            fg=typer.colors.YELLOW,
+        )
 
     if not collected_files:
         typer.secho(f"❌ No files found in {target_root}", fg=typer.colors.RED)
